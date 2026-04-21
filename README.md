@@ -1,60 +1,179 @@
-# Biblioteca en Solana
+# 💳 SubChain Solana
 
-![banner](./images/banner-biblioteca.jpg)
 
-CRUD básico de un Solana Program desarrollado con Rust y Anchor desde el Solana Playground. 
+Sistema CRUD de suscripciones desarrollado como **Solana Program** utilizando **Rust** y el framework **Anchor**.  
 
-Puedes comenzar dándole Fork a este repositorio (abajo te explicamos como 👇), **hemos preparado un entorno de codespaces listo para que no tengas que instalar nada**, solo déjate llevar por la fluidez de los ejercicios y temas desarrollados especialmente para ti. 
+Este proyecto simula la gestión de pagos recurrentes (*SaaS, Streaming, Cloud*) directamente en blockchain, aplicando buenas prácticas de:
 
-Asegúrate de clonar este repositorio a tu cuenta usando el botón **`Fork`**.
+- 🔑 Program Derived Addresses (PDAs)  
+- ⚡ Optimización de memoria *On-Chain*  
+- 🔒 Seguridad basada en firmas  
 
-![fork](./images/fork.png)
+---
 
-## Importando el proyecto 
+## 📚 Descripción
 
-Ya con el repositorio en tu cuenta lo siguiente que debes hacer copiar el `enlace de tu repositorio`, lo que se puede hacer directamente desdel navegador:
+**SubChain Solana** implementa un gestor de suscripciones descentralizado donde cada usuario puede:
 
-![repo](./images/repo.png)
-Posteriormente, lo uniremos con el siguiente enlace en nuestro navegador de preferencia:
+- Crear su propio gestor de suscripciones  
+- Agregar servicios (Netflix, AWS, Spotify, etc.)  
+- Editar costos o estados (activo/pausado)  
+- Eliminar suscripciones  
+- Consultar su información en la blockchain  
 
-```url
-https://beta.solpg.io/
+---
+
+## 🧠 Arquitectura y Estructuras de Datos
+
+En Solana es necesario definir explícitamente el tamaño de los datos para calcular correctamente la renta (*rent*).
+
+### 📦 PDA Principal: `GestorSuscripciones`
+
+Cuenta raíz derivada criptográficamente, única por usuario.
+
+```rust
+#[account]
+#[derive(InitSpace)]
+pub struct GestorSuscripciones {
+    pub owner: Pubkey,
+    #[max_len(40)]
+    pub nombre_usuario: String,
+    #[max_len(10)]
+    pub suscripciones: Vec<Suscripcion>,
+}
 ```
 
-Lo que nos dará algo parecido a:
+---
 
-![url](./images/url.png)
+### 🧩 Estructura Interna: `Suscripcion`
 
-Al pulsar enter seremos enviados al `Solana Playground` con nuestro proyecto abierto:
+Cada elemento dentro del vector contiene:
 
-![pg](./images/pg.png)
+- `nombre (String)` → máximo 30 caracteres  
+- `costo (u32)` → optimizado en memoria (sin decimales)  
+- `activa (bool)` → estado de la suscripción  
 
-Para guardarlo solo damos clic en el boton `import` y asignamos un nombre:
+---
 
-![import](./images/import.png)
+## 🔒 Seguridad
 
-## Preparacion del entorno
+El contrato implementa validación estricta de propiedad:
 
-Primero conectaremos el entorno con la devnet, lo que tambien procederá a la creación de una wallet. Para eso daremos clic en donde dice **Not Conected**:
+```rust
+require!(
+    gestor.owner == ctx.accounts.owner.key(),
+    Errores::NoEresElOwner
+);
+```
 
-![playground1](./images/playground1.png)
+✔ Solo el creador puede modificar sus datos  
+✔ Previene accesos no autorizados  
 
-Saldrá la siguiente ventana donde daremos en el botón **Continue**:
+---
 
-![wallet](./images/wallet.png)
+## ⚙️ Funcionalidad (CRUD)
 
-Como resultado se mostrará la siguiente información:
+### 🟢 Inicializar Gestor
 
-![status](./images/status.png)
+Crea la cuenta principal usando:
 
-* En verde: el estado de la conexión y el entorno al que se encuentra conectado
+```rust
+[b"gestor", owner.key()]
+```
 
-* En amarillo: la la dirección de la wallet conectada
+Inicializa:
+- Owner  
+- Nombre de usuario  
+- Vector vacío (`Vec::new()`)  
 
-* En azul: la cantidad de tokens en la wallet
+---
 
-> ℹ️ ¿Quieres ver el ejemplo de un "Hola Mundo" en Solana?. Da clic aquí: 👉 [Ver Ejemplo](https://github.com/WayLearnLatam/Solana-starter-kit/tree/1fc6349ba63375a3fe223d8d56911bc64765459b/build-deploy)
+### ➕ Agregar Suscripción
 
-> ℹ️ ¿Cuentas con una Wallet de [Phantom](https://phantom.com/) que deseas importar?, Da clic aquí para ver como hacerlo: 
+- Recibe nombre y costo  
+- Asigna automáticamente `activa = true`  
+- Inserta con `.push()`  
 
-👉 [Como Importar una Wallet](https://github.com/WayLearnLatam/Solana-starter-kit/tree/1fc6349ba63375a3fe223d8d56911bc64765459b/import-key-a-playground)
+---
+
+### ✏️ Editar Suscripción
+
+- Busca por nombre  
+- Actualiza:
+  - costo  
+  - estado (`activa`)  
+
+---
+
+### ❌ Eliminar Suscripción
+
+```rust
+.iter().position(|s| s.nombre == nombre)
+```
+
+- Si existe → `.remove(index)`  
+- Si no → error `SuscripcionNoEncontrada`  
+
+---
+
+### 📖 Ver Suscripciones
+
+```rust
+msg!("{:#?}", gestor.suscripciones);
+```
+
+Muestra los datos en logs *On-Chain*
+
+---
+
+## 🧪 Despliegue en Solana Playground
+
+1. Copia el código en `lib.rs`  
+2. Ejecuta:
+
+```bash
+cargo clean
+```
+
+3. Haz clic en **Build**  
+4. Haz clic en **Deploy (Devnet)**  
+
+---
+
+## 🧑‍💻 Pruebas
+
+Puedes interactuar usando:
+
+- Pestaña **Test** del Playground  
+- Scripts en TypeScript:
+
+```ts
+pg.program.methods...
+```
+
+Parámetros:
+- `nombre: String`  
+- `costo: u32`  
+- `activa: bool`  
+
+---
+
+## 📌 Conclusión
+
+Este proyecto demuestra:
+
+- Uso eficiente de memoria en Solana  
+- Seguridad basada en firmas  
+- Manejo estructurado de datos On-Chain  
+- Implementación de CRUD en blockchain  
+
+---
+
+## 🚀 Próximos pasos
+
+- Integrar frontend (React / Next.js)  
+- Automatizar pagos con lógica off-chain  
+- Añadir tokens SPL para pagos reales  
+- Implementar métricas de gasto  
+
+---
