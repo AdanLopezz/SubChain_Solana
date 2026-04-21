@@ -1,100 +1,180 @@
-💳 SubChain Solana - Gestor de Suscripciones
+# 💳 SubChain Solana
 
-SubChain Solana es un contrato inteligente (Smart Contract) desarrollado con el framework Anchor sobre la red de Solana.
+![banner](./images/banner-subchain.jpg)
 
-Este proyecto implementa un sistema CRUD para gestionar suscripciones de pago (SaaS, Streaming, Cloud), demostrando dominio técnico en:
+Sistema CRUD de suscripciones desarrollado como **Solana Program** utilizando **Rust** y el framework **Anchor**.  
 
-🔑 Program Derived Addresses (PDAs)
-⚡ Optimización de memoria On-Chain
-🔒 Seguridad basada en firmas
-🧠 1. Arquitectura y Estructuras de Datos (State)
+Este proyecto simula la gestión de pagos recurrentes (*SaaS, Streaming, Cloud*) directamente en blockchain, aplicando buenas prácticas de:
 
-En Solana, el almacenamiento requiere definir explícitamente el tamaño de los datos para calcular correctamente la rent.
+- 🔑 Program Derived Addresses (PDAs)  
+- ⚡ Optimización de memoria *On-Chain*  
+- 🔒 Seguridad basada en firmas  
 
-📦 Contenedor Principal (PDA): GestorSuscripciones
+---
 
-Cuenta raíz derivada criptográficamente, inicializada una única vez por usuario.
+## 📚 Descripción
 
+**SubChain Solana** implementa un gestor de suscripciones descentralizado donde cada usuario puede:
+
+- Crear su propio gestor de suscripciones  
+- Agregar servicios (Netflix, AWS, Spotify, etc.)  
+- Editar costos o estados (activo/pausado)  
+- Eliminar suscripciones  
+- Consultar su información en la blockchain  
+
+---
+
+## 🧠 Arquitectura y Estructuras de Datos
+
+En Solana es necesario definir explícitamente el tamaño de los datos para calcular correctamente la renta (*rent*).
+
+### 📦 PDA Principal: `GestorSuscripciones`
+
+Cuenta raíz derivada criptográficamente, única por usuario.
+
+```rust
 #[account]
 #[derive(InitSpace)]
 pub struct GestorSuscripciones {
-    pub owner: Pubkey,                // 32 bytes: Llave pública del creador.
-    #[max_len(40)]                    
-    pub nombre_usuario: String,       // 44 bytes (4 bytes prefijo + 40 datos).
-    #[max_len(10)]                    
-    pub suscripciones: Vec<Suscripcion>, 
+    pub owner: Pubkey,
+    #[max_len(40)]
+    pub nombre_usuario: String,
+    #[max_len(10)]
+    pub suscripciones: Vec<Suscripcion>,
 }
-🧩 Objeto Interno: Suscripcion
+```
 
-Define cada elemento dentro del vector:
+---
 
-nombre (String): Máximo 30 caracteres
-costo (u32): Optimizado para memoria (sin decimales)
-activa (bool): 1 byte para estado de pago
-🔒 2. Seguridad y Contextos de Ejecución
+### 🧩 Estructura Interna: `Suscripcion`
 
-Anchor utiliza contextos para separar validación y lógica de negocio.
+Cada elemento dentro del vector contiene:
 
-🏗️ Contextos principales
-🆕 CrearGestor
-Inicializa la cuenta en memoria
-Usa:
-space = 8 + GestorSuscripciones::INIT_SPACE
+- `nombre (String)` → máximo 30 caracteres  
+- `costo (u32)` → optimizado en memoria (sin decimales)  
+- `activa (bool)` → estado de la suscripción  
 
-Incluye 8 bytes del discriminador de Anchor
+---
 
-🔄 GestionarSuscripcion
-Maneja operaciones Read / Update / Delete
-Requiere:
-Signer
-Cuenta gestor como #[account(mut)]
-🛡️ Medida de Seguridad Principal
+## 🔒 Seguridad
+
+El contrato implementa validación estricta de propiedad:
+
+```rust
 require!(
     gestor.owner == ctx.accounts.owner.key(),
     Errores::NoEresElOwner
 );
+```
 
-✔ Garantiza que solo el propietario puede modificar las suscripciones, aunque la cuenta sea pública en la blockchain.
+✔ Solo el creador puede modificar sus datos  
+✔ Previene accesos no autorizados  
 
-⚙️ 3. Lógica de las Funciones (CRUD)
-🟢 Create — Inicialización
-inicializar_gestor
-Deriva la PDA con:
+---
+
+## ⚙️ Funcionalidad (CRUD)
+
+### 🟢 Inicializar Gestor
+
+Crea la cuenta principal usando:
+
+```rust
 [b"gestor", owner.key()]
+```
+
 Inicializa:
-Owner
-Nombre de usuario
-Vector vacío: Vec::new()
-➕ Create — Inserción
-agregar_suscripcion
-Recibe:
-nombre
-costo
-Asigna automáticamente:
-activa: true
-Inserta con:
-.push()
-✏️ Update — Modificación
-editar_suscripcion
-Busca mediante for
-Compara por nombre
-Actualiza:
-costo
-activa
+- Owner  
+- Nombre de usuario  
+- Vector vacío (`Vec::new()`)  
 
-✔ Permite simular pausas en pagos
+---
 
-❌ Delete — Eliminación
-eliminar_suscripcion
-Usa:
+### ➕ Agregar Suscripción
+
+- Recibe nombre y costo  
+- Asigna automáticamente `activa = true`  
+- Inserta con `.push()`  
+
+---
+
+### ✏️ Editar Suscripción
+
+- Busca por nombre  
+- Actualiza:
+  - costo  
+  - estado (`activa`)  
+
+---
+
+### ❌ Eliminar Suscripción
+
+```rust
 .iter().position(|s| s.nombre == nombre)
-Si existe:
-.remove(index)
-Si no:
-❗ Error: SuscripcionNoEncontrada
-📖 Read — Lectura
-ver_suscripciones
-Usa:
-msg!("{:#?}", gestor.suscripciones);
+```
 
-✔ Genera logs On-Chain legibles
+- Si existe → `.remove(index)`  
+- Si no → error `SuscripcionNoEncontrada`  
+
+---
+
+### 📖 Ver Suscripciones
+
+```rust
+msg!("{:#?}", gestor.suscripciones);
+```
+
+Muestra los datos en logs *On-Chain*
+
+---
+
+## 🧪 Despliegue en Solana Playground
+
+1. Copia el código en `lib.rs`  
+2. Ejecuta:
+
+```bash
+cargo clean
+```
+
+3. Haz clic en **Build**  
+4. Haz clic en **Deploy (Devnet)**  
+
+---
+
+## 🧑‍💻 Pruebas
+
+Puedes interactuar usando:
+
+- Pestaña **Test** del Playground  
+- Scripts en TypeScript:
+
+```ts
+pg.program.methods...
+```
+
+Parámetros:
+- `nombre: String`  
+- `costo: u32`  
+- `activa: bool`  
+
+---
+
+## 📌 Conclusión
+
+Este proyecto demuestra:
+
+- Uso eficiente de memoria en Solana  
+- Seguridad basada en firmas  
+- Manejo estructurado de datos On-Chain  
+- Implementación de CRUD en blockchain  
+
+---
+
+## 🚀 Próximos pasos
+
+- Integrar frontend (React / Next.js)  
+- Automatizar pagos con lógica off-chain  
+- Añadir tokens SPL para pagos reales  
+- Implementar métricas de gasto  
+
+---
