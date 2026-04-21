@@ -1,6 +1,5 @@
 # 💳 SubChain Solana
 
-![banner](./images/banner-subchain.jpg)
 
 Sistema CRUD de suscripciones desarrollado como **Solana Program** utilizando **Rust** y el framework **Anchor**.  
 
